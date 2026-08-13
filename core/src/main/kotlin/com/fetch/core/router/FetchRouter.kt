@@ -61,6 +61,17 @@ public class FetchRouter(
 
         if (!skipHttp) {
             val result = http.fetch(url)
+
+            // An error status is a failure, not a hint that the page needs
+            // JavaScript. Escalating here would launch a browser to render an
+            // error page, and indexing the result would store it as content.
+            if (result.statusCode !in SUCCESS_STATUS) {
+                throw EngineException(
+                    if (result.statusCode == 429) ErrorCode.RATE_LIMITED else ErrorCode.HTTP_ERROR,
+                    "Server returned ${result.statusCode}",
+                )
+            }
+
             val extracted = extractor.extract(result.body, result.finalUrl)
 
             if (!needsBrowser(extracted.text, result.body)) {
@@ -116,6 +127,8 @@ public class FetchRouter(
             .joinToString("") { "%02x".format(it) }
 
     private companion object {
+        val SUCCESS_STATUS = 200..299
+
         val SPA_MARKERS = listOf(
             "<div id=\"root\"></div>",
             "<div id=\"app\"></div>",

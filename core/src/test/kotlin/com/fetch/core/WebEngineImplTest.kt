@@ -232,4 +232,58 @@ class WebEngineImplTest {
         assertEquals(false, health.capabilities["discovery"])
         assertFalse(health.browserAvailable)
     }
+
+    @Test
+    fun `ask fetches what discovery found rather than only what was indexed`() = runTest {
+        server.enqueue(MockResponse().setBody(page("Cancellation propagates through every stage of the call. ")))
+        val url = server.url("/cancel").toString()
+        val discovery = Discovery(listOf(FakeSearchSource("alpha", hits = listOf(url))), config.discovery)
+
+        val response = engine(discovery).ask("cancellation")
+
+        assertTrue(response.evidence.isNotEmpty())
+        assertTrue(response.context.contains("Cancellation propagates"))
+        // Fetched once and kept, so the same question is free next time.
+        assertEquals(1, index.putCount)
+    }
+
+    @Test
+    fun `ask skips sources that cannot be fetched`() = runTest {
+        // Routed by path rather than queued: how many requests each fetch makes
+        // is the router's business, and a queue would make this test depend on it.
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest) =
+                if (request.path.orEmpty().startsWith("/good")) {
+                    MockResponse().setBody(page("Bearer tokens are rotated on every attempt. "))
+                } else {
+                    MockResponse().setResponseCode(500)
+                }
+        }
+        val discovery = Discovery(
+            listOf(
+                FakeSearchSource(
+                    "alpha",
+                    hits = listOf(server.url("/broken").toString(), server.url("/good").toString()),
+                ),
+            ),
+            config.discovery,
+        )
+
+        val response = engine(discovery).ask("tokens")
+
+        assertTrue(response.evidence.isNotEmpty())
+        assertTrue(response.context.contains("Bearer tokens"))
+    }
+
+    @Test
+    fun `ask stays within the source budget`() = runTest {
+        repeat(5) { server.enqueue(MockResponse().setBody(page())) }
+        val urls = (1..5).map { server.url("/p$it").toString() }
+        val discovery = Discovery(listOf(FakeSearchSource("alpha", hits = urls)), config.discovery)
+
+        engine(discovery).ask("tokens", maxSources = 2)
+
+        // Two fetched, not all five: an answer has a budget.
+        assertEquals(2, server.requestCount)
+    }
 }

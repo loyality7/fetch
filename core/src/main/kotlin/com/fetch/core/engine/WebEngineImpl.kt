@@ -6,6 +6,7 @@ import com.fetch.core.error.EngineException
 import com.fetch.core.error.ErrorCode
 import com.fetch.core.extract.Extractor
 import com.fetch.core.index.IndexStore
+import com.fetch.core.log.Log
 import com.fetch.core.model.AskResponse
 import com.fetch.core.model.CacheMode
 import com.fetch.core.model.Document
@@ -142,8 +143,16 @@ public class WebEngineImpl(
         val started = System.currentTimeMillis()
         val found = search(query, maxSources)
 
-        val evidence = found.results.mapNotNull { result ->
-            val document = index.get(result.url) ?: return@mapNotNull null
+        // Discovery returns addresses, not content. Fetching what it found is
+        // the whole point: without this an answer could only ever be assembled
+        // from pages that happened to be indexed already.
+        val evidence = found.results.take(maxSources).mapNotNull { result ->
+            val document = index.get(result.url)
+                ?: runCatching { router.fetch(result.url, CacheMode.DEFAULT) }
+                    .onFailure { Log.debug("ask: skipping ${result.url}: ${it.message}") }
+                    .getOrNull()
+                ?: return@mapNotNull null
+
             passages(document, query, maxPassages = 2)
         }.flatten().take(maxSources * 2)
 

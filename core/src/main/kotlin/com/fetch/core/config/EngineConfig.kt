@@ -1,5 +1,7 @@
 package com.fetch.core.config
 
+import com.fetch.core.discovery.sources.SourceCatalogue
+import com.fetch.core.discovery.sources.SourceDefinition
 import com.fetch.core.model.Tier
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
@@ -77,12 +79,19 @@ public data class DiscoveryConfig(
     /** RRF constant. 60 is the value the literature settled on. */
     val rrfK: Int = 60,
     /**
-     * HTML-scraped sources. Off by default: they break when markup changes and
-     * invite blocking at scale. Opt-in, knowingly. See goals/not-feasible.md N9.
+     * Which sources to query, described rather than compiled in, so an
+     * application can add, replace or drop any of them without a release. Empty
+     * means index-only search.
      */
-    val enableScrapedSources: Boolean = false,
-    /** Optional, user-supplied. Never required for the engine to work. */
-    val braveApiKey: String? = null,
+    val sources: List<SourceDefinition> = SourceCatalogue.defaults(),
+    /**
+     * Sources that parse a page rather than a published interface. Kept out
+     * unless an application opts in: they break when a layout changes and
+     * invite blocking once many users run the same query.
+     */
+    val includeUnofficialSources: Boolean = false,
+    /** Sent on every discovery request. Carries no author or device detail. */
+    val userAgent: String = "fetch/0.1",
 )
 
 public data class SecurityConfig(

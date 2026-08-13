@@ -213,4 +213,53 @@ class FetchRouterTest {
 
         assertEquals(ErrorCode.SSRF_BLOCKED, error.code)
     }
+
+    @Test
+    fun `an error status is a failure rather than a reason to open a browser`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("<html><body>Server error</body></html>"))
+        val browser = FakeBrowserBackend()
+
+        val error = assertThrows(EngineException::class.java) {
+            runBlocking { router(browser).fetch(server.url("/broken").toString(), CacheMode.DEFAULT) }
+        }
+
+        assertEquals(ErrorCode.HTTP_ERROR, error.code)
+        assertEquals(0, browser.fetchCount)
+    }
+
+    @Test
+    fun `an error page is never indexed as content`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("<html><body>Not found</body></html>"))
+
+        runCatching { router().fetch(server.url("/missing").toString(), CacheMode.DEFAULT) }
+
+        assertEquals(0, index.putCount)
+    }
+
+    @Test
+    fun `an error does not teach the router that the domain needs a browser`() = runTest {
+        // One failing page must not push an entire host onto the expensive tier.
+        server.enqueue(MockResponse().setResponseCode(500))
+        server.enqueue(MockResponse().setBody(articleHtml()))
+        val browser = FakeBrowserBackend()
+        val subject = router(browser)
+
+        runCatching { subject.fetch(server.url("/broken").toString(), CacheMode.DEFAULT) }
+        val good = subject.fetch(server.url("/good").toString(), CacheMode.DEFAULT)
+
+        assertEquals(Tier.HTTP, good.tier)
+        assertEquals(0, browser.fetchCount)
+    }
+
+    @Test
+    fun `rate limiting is reported as its own retryable failure`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(429))
+
+        val error = assertThrows(EngineException::class.java) {
+            runBlocking { router().fetch(server.url("/limited").toString(), CacheMode.DEFAULT) }
+        }
+
+        assertEquals(ErrorCode.RATE_LIMITED, error.code)
+        assertTrue(error.retryable)
+    }
 }
