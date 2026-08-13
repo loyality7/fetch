@@ -2,12 +2,11 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.sqldelight)
 }
 
 android {
     namespace = "com.fetch.core"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         minSdk = 26
@@ -22,8 +21,6 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
-        // Public API of a library: explicit visibility and return types.
-        freeCompilerArgs += listOf("-Xexplicit-api=strict")
     }
 
     sourceSets["main"].java.srcDir("src/main/kotlin")
@@ -32,16 +29,6 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
-    }
-}
-
-sqldelight {
-    databases {
-        create("FetchDatabase") {
-            packageName.set("com.fetch.core.index.db")
-            // Bundled SQLite is new enough for FTS5 and (v2) loadable extensions.
-            dialect("app.cash.sqldelight:sqlite-3-38-dialect:${libs.versions.sqldelight.get()}")
-        }
     }
 }
 
@@ -54,9 +41,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.jsoup)
 
-    implementation(libs.sqldelight.runtime)
-    implementation(libs.sqldelight.android.driver)
-    implementation(libs.sqldelight.coroutines)
+    // Bundled SQLite rather than the platform one: FTS5 is not guaranteed on
+    // every device, and loadable extensions are impossible against the system
+    // library. Raw SQL rather than an ORM or typed-SQL generator, because both
+    // fight FTS5 internals such as rank and bm25().
     implementation(libs.sqlite.androidx)
     implementation(libs.sqlite.bundled)
 
@@ -68,4 +56,12 @@ dependencies {
 
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
+}
+
+// Explicit visibility and return types on the published API, but not on test
+// sources, where the ceremony buys nothing.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    if (!name.contains("Test")) {
+        compilerOptions.freeCompilerArgs.add("-Xexplicit-api=strict")
+    }
 }
