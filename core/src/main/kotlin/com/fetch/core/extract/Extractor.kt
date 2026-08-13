@@ -40,6 +40,37 @@ public class Extractor(private val config: ExtractionConfig) {
     private fun stripNoise(doc: JsoupDocument) {
         doc.select("script, style, noscript, svg, iframe, nav, header, footer, aside").remove()
         doc.select("[aria-hidden=true], [hidden]").remove()
+        doc.select("[role=navigation], [role=banner], [role=complementary], [role=search]").remove()
+
+        // Page furniture that sits inside the article container and therefore
+        // survives tag-based stripping: editorial notices, tables of contents,
+        // share widgets, related-article rails. Matched on class and id because
+        // no markup convention exists for any of it.
+        doc.select("*").filter { element ->
+            val identity = "${element.id()} ${element.className()}"
+            identity.isNotBlank() && BOILERPLATE.containsMatchIn(identity)
+        }.forEach { it.remove() }
+    }
+
+    private companion object {
+        /**
+         * Anchored on word boundaries: a bare "nav" substring would take out
+         * "navigation-free" prose containers and, worse, class names like
+         * "innovation".
+         */
+        val BOILERPLATE = Regex(
+            "\\b(" +
+                "hatnote|ambox|navbox|infobox|metadata|mw-editsection|catlinks|" +
+                "toc|table-of-contents|breadcrumb|" +
+                "cookie|consent|gdpr|newsletter|subscribe|paywall|" +
+                "share|social|follow-us|" +
+                "related|recommended|more-stories|read-next|trending|" +
+                "comment|disqus|" +
+                "promo|advert|sponsored|banner|popup|modal|overlay|" +
+                "skip-link|screen-reader|visually-hidden|sr-only" +
+                ")\\b",
+            RegexOption.IGNORE_CASE,
+        )
     }
 
     private fun extractLinks(doc: JsoupDocument): List<Link> =

@@ -8,6 +8,7 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.Button
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -93,6 +94,26 @@ class MainActivity : Activity() {
             setOnClickListener { searchIndex() }
         }
 
+        val presets = HorizontalScrollView(this).apply {
+            addView(
+                LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    SAMPLES.forEach { (label, url) ->
+                        addView(
+                            Button(this@MainActivity).apply {
+                                text = label
+                                textSize = 11f
+                                setOnClickListener {
+                                    input.setText(url)
+                                    fetch()
+                                }
+                            },
+                        )
+                    }
+                },
+            )
+        }
+
         output = TextView(this).apply {
             textSize = 13f
             setTextIsSelectable(true)
@@ -111,6 +132,7 @@ class MainActivity : Activity() {
                 },
                 LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT),
             )
+            addView(presets, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             addView(
                 ScrollView(this@MainActivity).apply { addView(output) },
                 LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT),
@@ -190,6 +212,22 @@ class MainActivity : Activity() {
     }
 
     private companion object {
+        /**
+         * One target per fetch behaviour worth exercising by hand: plain
+         * article, developer docs, structured data, a JSON endpoint, a
+         * link-dense index page, and a client-rendered page that should report
+         * JS_REQUIRED while there is no browser tier.
+         */
+        val SAMPLES = listOf(
+            "Wikipedia" to "https://en.wikipedia.org/wiki/Web_scraping",
+            "Docs" to "https://developer.android.com/reference/android/webkit/WebView",
+            "News" to "https://text.npr.org",
+            "JSON" to "https://api.github.com/repos/square/okhttp",
+            "Links" to "https://news.ycombinator.com",
+            "JSON-LD" to "https://www.bbc.com/news",
+            "SPA" to "https://react.dev/learn",
+        )
+
         const val PADDING = 32
         const val PREVIEW_CHARS = 4_000
         const val SNIPPET_CHARS = 160

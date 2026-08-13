@@ -20,14 +20,42 @@ public object MainContentFinder {
     )
 
     public fun find(doc: JsoupDocument): Element {
-        SEMANTIC_SELECTORS.firstNotNullOfOrNull { doc.selectFirst(it) }
-            ?.takeIf { it.text().length > 200 }
-            ?.let { return it }
-
-        return doc.select("div, section, td")
-            .filter { it.text().length > 200 }
-            .maxByOrNull(::score)
+        val candidate = SEMANTIC_SELECTORS.firstNotNullOfOrNull { doc.selectFirst(it) }
+            ?.takeIf { it.text().length > MIN_BLOCK_LENGTH }
+            ?: doc.select("div, section, td")
+                .filter { it.text().length > MIN_BLOCK_LENGTH }
+                .maxByOrNull(::score)
             ?: doc.body()
+
+        return narrow(candidate)
+    }
+
+    /**
+     * Walk down while a single child still holds nearly all the text.
+     *
+     * Semantic wrappers are usually a layer or two above the prose, and the
+     * layers in between carry the page's own furniture — breadcrumbs, notices,
+     * tab strips. Descending sheds those without needing to recognise them.
+     */
+    private fun narrow(element: Element): Element {
+        var current = element
+        while (true) {
+            val length = current.text().length
+            if (length < MIN_BLOCK_LENGTH) return current
+
+            val dominant = current.children()
+                .filter { it.text().length >= length * DOMINANT_TEXT_SHARE }
+                .takeIf { it.size == 1 }
+                ?.first()
+                ?: return current
+
+            // Never descend into content itself. A container whose text happens
+            // to sit in one long paragraph still owns the headings and lists
+            // around it, and stepping inside would discard them.
+            if (dominant.tagName() in CONTENT_TAGS) return current
+
+            current = dominant
+        }
     }
 
     /**
@@ -47,4 +75,12 @@ public object MainContentFinder {
 
         return text.length * (1 - linkDensity) * (1 + paragraphs * 0.1)
     }
+
+    private const val MIN_BLOCK_LENGTH = 200
+    private const val DOMINANT_TEXT_SHARE = 0.9
+
+    private val CONTENT_TAGS = setOf(
+        "p", "span", "li", "td", "th", "pre", "code", "blockquote", "figcaption",
+        "h1", "h2", "h3", "h4", "h5", "h6",
+    )
 }
