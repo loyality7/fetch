@@ -34,3 +34,9 @@ models/
 # Native
 *.so
 target/
+
+# Local SDK path
+local.properties
+
+# Kotlin compiler session files
+.kotlin/
