@@ -72,9 +72,11 @@ public class FetchRouter(
                 )
             }
 
-            val extracted = extractor.extract(result.body, result.finalUrl)
+            val extracted = extractor.extract(result.body, result.finalUrl, result.contentType)
 
-            if (!needsBrowser(extracted.text, result.body)) {
+            val isHtml = com.fetch.core.extract.ContentType.detect(result.contentType, result.body, url) ==
+                com.fetch.core.extract.ContentType.HTML
+            if (!isHtml || !needsBrowser(extracted.text, result.body)) {
                 return build(url, result.finalUrl, extracted, Tier.HTTP, result.statusCode, result.contentType)
             }
             Log.debug("escalating $domain to browser tier")
@@ -90,7 +92,11 @@ public class FetchRouter(
             .copy(settled = rendered.settled)
     }
 
-    /** Thin output, or an obvious client-rendered shell, means HTTP was not enough. */
+    /**
+     * Thin output, or an obvious client-rendered shell, means HTTP was not
+     * enough. Only ever asked about HTML: a short JSON response is complete,
+     * not truncated, and rendering it in a browser would return the same bytes.
+     */
     private fun needsBrowser(text: String, html: String): Boolean {
         if (text.length >= config.extraction.minUsefulTextLength) return false
         return SPA_MARKERS.any { html.contains(it, ignoreCase = true) } || text.length < 200

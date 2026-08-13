@@ -14,7 +14,21 @@ import org.jsoup.nodes.Document as JsoupDocument
  */
 public class Extractor(private val config: ExtractionConfig) {
 
-    public fun extract(html: String, baseUrl: String): Extracted {
+    /**
+     * @param contentType the declared type, when the caller has one. An HTML
+     *   parser accepts anything and returns punctuation as prose, so the type is
+     *   settled before the body is read rather than after.
+     */
+    public fun extract(html: String, baseUrl: String, contentType: String? = null): Extracted {
+        when (val type = ContentType.detect(contentType, html, baseUrl)) {
+            ContentType.HTML -> Unit
+            ContentType.UNSUPPORTED -> throw com.fetch.core.error.EngineException(
+                com.fetch.core.error.ErrorCode.UNSUPPORTED_CONTENT,
+                "Cannot extract from $contentType",
+            )
+            else -> return StructuredDecoder.decode(type, html, baseUrl, config.maxExtractedChars)
+        }
+
         val doc = Jsoup.parse(html, baseUrl)
 
         // Metadata first: JSON-LD lives in script tags, which stripNoise removes.
