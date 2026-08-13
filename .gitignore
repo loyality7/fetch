@@ -40,3 +40,6 @@ local.properties
 
 # Kotlin compiler session files
 .kotlin/
+
+# Session memory
+memory/
