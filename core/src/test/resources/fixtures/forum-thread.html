@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Why does my coroutine keep running after cancel? - Example Q&amp;A</title>
+<link rel="canonical" href="https://qa.example.com/questions/883/coroutine-cancel"></head>
+<body>
+  <div id="content">
+    <div id="mainbar">
+      <div id="question-header"><h1>Why does my coroutine keep running after cancel?</h1></div>
+
+      <div class="question">
+        <div class="postcell">
+          <p>I call cancel on the job but the loop inside keeps printing. I expected it to stop
+          immediately. The loop is a plain while that does some arithmetic and never calls any
+          suspending function inside the body.</p>
+          <pre><code>while (true) { compute() }</code></pre>
+        </div>
+      </div>
+
+      <div id="answers">
+        <div class="answer accepted-answer">
+          <div class="postcell">
+            <p>Cancellation is cooperative. A coroutine is only cancelled at a suspension point,
+            so a tight loop that never suspends will run to completion. Call ensureActive inside
+            the loop, or use yield, and the cancellation will take effect.</p>
+            <pre><code>while (isActive) { compute() }</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sidebar" class="show-votes">
+      <div class="module related">
+        <h4>Related</h4>
+        <a href="/q/12">How to cancel a flow collection</a>
+        <a href="/q/34">Difference between cancel and cancelAndJoin</a>
+      </div>
+      <div class="s-sidebarwidget newsletter">Get the weekly digest</div>
+    </div>
+  </div>
+  <footer class="site-footer"><a href="/help">Help</a></footer>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Understanding Connection Pooling &#8211; Example Blog</title>
+  <meta name="description" content="Why connection pools exist and when they hurt.">
+  <link rel="canonical" href="https://blog.example.com/connection-pooling/">
+  <meta property="og:site_name" content="Example Blog">
+</head>
+<body class="post-template-default single">
+  <a class="skip-link screen-reader-text" href="#content">Skip to content</a>
+
+  <header id="masthead" class="site-header">
+    <nav id="site-navigation" class="main-navigation">
+      <ul><li><a href="/">Home</a></li><li><a href="/about">About</a></li><li><a href="/archive">Archive</a></li></ul>
+    </nav>
+  </header>
+
+  <div id="content" class="site-content">
+    <div id="primary" class="content-area">
+      <main id="main" class="site-main">
+        <article id="post-482" class="post-482 post type-post">
+          <header class="entry-header">
+            <h1 class="entry-title">Understanding Connection Pooling</h1>
+            <div class="entry-meta">Posted on <time datetime="2026-03-04">4 March 2026</time> by Editor</div>
+          </header>
+
+          <div class="entry-content">
+            <p>Opening a database connection is expensive. A pool keeps a set of established
+            connections alive and hands them out on request, so the cost of the handshake is paid
+            once rather than on every query. This matters most when queries are short and frequent.</p>
+
+            <h2>When pooling stops helping</h2>
+            <p>A pool sized larger than the database can serve does not make the system faster. It
+            moves the queue from the application into the database, where it is harder to observe
+            and where each waiting connection consumes server memory.</p>
+
+            <ul>
+              <li>Size the pool to the database, not to the application</li>
+              <li>Measure wait time at the pool, not just query time</li>
+              <li>Fail fast when the pool is exhausted</li>
+            </ul>
+
+            <pre><code>maxPoolSize = min(cores * 2, dbMaxConnections / instances)</code></pre>
+          </div>
+
+          <footer class="entry-footer">
+            <span class="cat-links">Posted in <a href="/c/databases">Databases</a></span>
+          </footer>
+        </article>
+
+        <div class="sharedaddy sd-sharing-enabled">
+          <h3 class="sd-title">Share this:</h3>
+          <a href="#">Twitter</a><a href="#">Facebook</a><a href="#">LinkedIn</a>
+        </div>
+
+        <div id="comments" class="comments-area">
+          <h2 class="comments-title">3 thoughts on Understanding Connection Pooling</h2>
+          <ol class="comment-list">
+            <li class="comment"><p>Great post, this helped me a lot at work.</p></li>
+            <li class="comment"><p>What about serverless functions?</p></li>
+          </ol>
+        </div>
+
+        <div class="related-posts">
+          <h3>You might also like</h3>
+          <a href="/indexes">Choosing the right index</a>
+          <a href="/vacuum">Understanding autovacuum</a>
+        </div>
+      </main>
+    </div>
+
+    <aside id="secondary" class="widget-area">
+      <div class="widget widget_search"><input type="search"></div>
+      <div class="widget newsletter-signup">Subscribe to the newsletter for weekly posts</div>
+    </aside>
+  </div>
+
+  <footer id="colophon" class="site-footer">
+    <p>Copyright 2026 Example Blog. All rights reserved.</p>
+  </footer>
+
+  <div class="cookie-notice" id="cookie-notice">
+    This site uses cookies to improve your experience. <button>Accept</button>
+  </div>
+</body>
+</html>

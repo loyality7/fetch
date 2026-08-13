@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Cancellation | Example SDK Docs</title>
+  <link rel="canonical" href="https://docs.example.com/guide/cancellation">
+</head>
+<body>
+  <div id="__docusaurus">
+    <nav class="navbar navbar--fixed-top">
+      <a class="navbar__brand" href="/">Example SDK</a>
+      <a class="navbar__item" href="/docs">Docs</a>
+      <a class="navbar__item" href="/api">API</a>
+    </nav>
+
+    <div class="main-wrapper">
+      <div class="docsWrapper">
+        <aside class="theme-doc-sidebar-container">
+          <nav class="menu thin-scrollbar">
+            <ul class="theme-doc-sidebar-menu">
+              <li><a href="/guide/install">Installation</a></li>
+              <li><a href="/guide/quickstart">Quick start</a></li>
+              <li><a href="/guide/cancellation">Cancellation</a></li>
+              <li><a href="/guide/errors">Error handling</a></li>
+              <li><a href="/guide/testing">Testing</a></li>
+            </ul>
+          </nav>
+        </aside>
+
+        <main class="docMainContainer">
+          <div class="container padding-top--md">
+            <div class="row">
+              <div class="col docItemCol">
+                <div class="theme-doc-markdown markdown">
+                  <h1>Cancellation</h1>
+
+                  <p>Every call in the SDK is cancellable. Cancelling the calling scope propagates
+                  downwards through the request, the parser and any pooled resource, so no work
+                  continues after the caller has stopped caring about the result.</p>
+
+                  <h2>Cancelling a request</h2>
+                  <pre class="language-kotlin"><code>val job = scope.launch { client.fetch(url) }
+job.cancel()</code></pre>
+
+                  <p>Cancellation is cooperative. A blocking call that never yields cannot be
+                  interrupted, which is why every long operation in the SDK either suspends or
+                  checks for cancellation between chunks.</p>
+
+                  <h3>Timeouts</h3>
+                  <p>A timeout is cancellation with a deadline attached. Prefer a timeout at the
+                  outermost call rather than one per stage, so the total budget stays predictable.</p>
+
+                  <table>
+                    <tr><th>Setting</th><th>Default</th></tr>
+                    <tr><td>connectTimeout</td><td>10s</td></tr>
+                    <tr><td>readTimeout</td><td>20s</td></tr>
+                  </table>
+                </div>
+
+                <nav class="pagination-nav">
+                  <a class="pagination-nav__link" href="/guide/quickstart">Previous: Quick start</a>
+                  <a class="pagination-nav__link" href="/guide/errors">Next: Error handling</a>
+                </nav>
+              </div>
+
+              <div class="col col--3">
+                <div class="tableOfContents thin-scrollbar">
+                  <ul>
+                    <li><a href="#cancelling-a-request">Cancelling a request</a></li>
+                    <li><a href="#timeouts">Timeouts</a></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <footer class="footer footer--dark">
+      <div class="footer__links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div>
+    </footer>
+  </div>
+</body>
+</html>
