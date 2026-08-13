@@ -31,9 +31,13 @@ public object MetadataExtractor {
     private fun meta(doc: JsoupDocument, name: String): String? =
         doc.selectFirst("meta[name=$name]")?.attr("content")?.takeIf { it.isNotBlank() }
 
-    private fun parseDate(raw: String?): Long? = raw?.let {
-        runCatching { java.time.Instant.parse(it).toEpochMilli() }
-            .recoverCatching { java.time.LocalDate.parse(it).toEpochDay() * 86_400_000L }
-            .getOrNull()
+    /** Pages date themselves as either a full timestamp or a bare date. Accept both. */
+    private fun parseDate(raw: String?): Long? {
+        if (raw.isNullOrBlank()) return null
+        runCatching { return java.time.Instant.parse(raw).toEpochMilli() }
+        runCatching { return java.time.LocalDate.parse(raw).toEpochDay() * MILLIS_PER_DAY }
+        return null
     }
+
+    private const val MILLIS_PER_DAY = 86_400_000L
 }

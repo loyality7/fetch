@@ -16,7 +16,7 @@ import kotlinx.serialization.json.Json
  * loopback alone is not a security boundary on a device with other apps on it.
  */
 public class LocalApiServer(
-    private val engine: WebEngine,
+    private val webEngine: WebEngine,
     private val token: String,
     private val port: Int = DEFAULT_PORT,
 ) {
@@ -25,7 +25,7 @@ public class LocalApiServer(
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true; encodeDefaults = true })
         }
-        installRoutes(engine, token)
+        installRoutes(webEngine, token)
     }
 
     public fun start() {

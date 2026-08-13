@@ -39,19 +39,19 @@ public class HttpFetcher(
                 call.execute().use { response ->
                     val body = response.body ?: throw EngineException(ErrorCode.HTTP_ERROR, "Empty response")
 
-                    val declared = body.contentLength()
-                    if (declared > config.maxResponseBytes) {
+                    if (body.contentLength() > config.maxResponseBytes) {
                         throw EngineException(ErrorCode.RESPONSE_TOO_LARGE, "Response exceeds limit")
                     }
 
-                    // Read one byte past the cap so an undeclared oversize body is caught too.
-                    val bytes = body.source().let { source ->
-                        source.request(config.maxResponseBytes + 1)
-                        source.buffer.snapshot().toByteArray()
-                    }
-                    if (bytes.size > config.maxResponseBytes) {
+                    // Buffer one byte past the cap: a body that arrives without a
+                    // declared length, or lies about it, is caught here rather
+                    // than after it has already been read into memory.
+                    val source = body.source()
+                    source.request(config.maxResponseBytes + 1)
+                    if (source.buffer.size > config.maxResponseBytes) {
                         throw EngineException(ErrorCode.RESPONSE_TOO_LARGE, "Response exceeds limit")
                     }
+                    val bytes = source.readByteArray()
 
                     // The final URL after redirects — the guard must see it too.
                     val finalUrl = response.request.url.toString()

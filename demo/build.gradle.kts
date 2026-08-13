@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.fetch.demo"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.fetch.demo"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
     }

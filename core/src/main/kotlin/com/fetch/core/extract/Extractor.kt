@@ -16,6 +16,11 @@ public class Extractor(private val config: ExtractionConfig) {
 
     public fun extract(html: String, baseUrl: String): Extracted {
         val doc = Jsoup.parse(html, baseUrl)
+
+        // Metadata first: JSON-LD lives in script tags, which stripNoise removes.
+        val canonicalUrl = doc.selectFirst("link[rel=canonical]")?.attr("abs:href")
+        val metadata = MetadataExtractor.extract(doc, config.extractJsonLd)
+
         stripNoise(doc)
 
         val main = MainContentFinder.find(doc)
@@ -26,9 +31,9 @@ public class Extractor(private val config: ExtractionConfig) {
             title = doc.title().takeIf { it.isNotBlank() },
             text = text,
             markdown = markdown,
-            canonicalUrl = doc.selectFirst("link[rel=canonical]")?.attr("abs:href"),
+            canonicalUrl = canonicalUrl,
             links = if (config.extractLinks) extractLinks(doc) else emptyList(),
-            metadata = MetadataExtractor.extract(doc, config.extractJsonLd),
+            metadata = metadata,
         )
     }
 

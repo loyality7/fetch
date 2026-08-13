@@ -7,6 +7,7 @@ import com.fetch.service.dto.ErrorBody
 import com.fetch.service.dto.ErrorResponse
 import com.fetch.service.dto.OpenRequest
 import com.fetch.service.dto.SearchRequest
+import com.fetch.service.dto.toDto
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.call

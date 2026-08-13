@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.fetch.service"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         minSdk = 26
@@ -20,7 +20,6 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
-        freeCompilerArgs += listOf("-Xexplicit-api=strict")
     }
 
     sourceSets["main"].java.srcDir("src/main/kotlin")
@@ -46,4 +45,12 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
+}
+
+// Explicit visibility and return types on the published API, but not on test
+// sources, where the ceremony buys nothing.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    if (!name.contains("Test")) {
+        compilerOptions.freeCompilerArgs.add("-Xexplicit-api=strict")
+    }
 }
