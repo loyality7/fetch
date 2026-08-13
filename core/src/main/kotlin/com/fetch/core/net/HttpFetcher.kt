@@ -20,17 +20,24 @@ import java.util.concurrent.TimeUnit
 public class HttpFetcher(
     private val config: HttpConfig,
     private val guard: SsrfGuard,
-    private val client: OkHttpClient = defaultClient(config),
 ) {
+
+    // Built here rather than injected: OkHttp is an implementation detail and
+    // must not appear in the published API, or every consumer inherits it.
+    private val client: OkHttpClient = buildClient(config)
 
     public suspend fun fetch(url: String, headers: Map<String, String> = emptyMap()): HttpResult =
         withContext(Dispatchers.IO) {
             guard.check(url)
 
+            // Deliberately no Accept-Encoding header: OkHttp adds one and
+            // decompresses transparently, but only while it owns the header.
+            // Setting it here hands decompression back to us and yields raw
+            // gzip bytes.
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", config.userAgent)
-                .header("Accept-Encoding", "gzip")
+                .header("Accept", ACCEPT)
                 .apply { headers.forEach { (k, v) -> header(k, v) } }
                 .build()
 
@@ -79,8 +86,11 @@ public class HttpFetcher(
             .getOrDefault(Charsets.UTF_8)
     }
 
-    public companion object {
-        public fun defaultClient(config: HttpConfig): OkHttpClient = OkHttpClient.Builder()
+    private companion object {
+        const val ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9," +
+            "application/json;q=0.9,text/plain;q=0.8,*/*;q=0.5"
+
+        fun buildClient(config: HttpConfig): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(config.connectTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
             .readTimeout(config.readTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
             .callTimeout(config.totalTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)

@@ -40,4 +40,8 @@ dependencies {
     implementation(libs.kotlin.stdlib)
     implementation(libs.coroutines.android)
     implementation(libs.androidx.core)
+
+    // The harness constructs the engine directly, so it supplies the driver.
+    implementation(libs.sqlite.androidx)
+    implementation(libs.sqlite.bundled)
 }
