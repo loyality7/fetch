@@ -1,0 +1,36 @@
+# Private planning + references — not published
+goals/
+goal_final.txt
+inspire/
+
+# Android / Gradle
+*.iml
+.gradle/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+release/
+*.apk
+*.aab
+*.aar
+*.jks
+*.keystore
+
+# IDE
+.idea/
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models — downloaded at runtime, never committed
+*.onnx
+models/
+
+# Native
+*.so
+target/
