@@ -1,0 +1,116 @@
+-- Documents: web pages, user-added content, and crawl output all live here.
+-- One table on purpose — retrieval should not care where content came from.
+CREATE TABLE document (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    url             TEXT NOT NULL UNIQUE,
+    final_url       TEXT NOT NULL,
+    canonical_url   TEXT,
+    title           TEXT,
+    text            TEXT NOT NULL,
+    markdown        TEXT NOT NULL,
+    content_hash    TEXT NOT NULL,
+    fetched_at      INTEGER NOT NULL,
+    expires_at      INTEGER NOT NULL,
+    tier            TEXT NOT NULL,
+    source          TEXT NOT NULL,
+    status_code     INTEGER,
+    content_type    TEXT,
+    etag            TEXT,
+    last_modified   TEXT,
+    metadata_json   TEXT,
+    links_json      TEXT,
+    size_bytes      INTEGER NOT NULL,
+    accessed_at     INTEGER NOT NULL
+);
+
+CREATE INDEX document_hash ON document(content_hash);
+CREATE INDEX document_expiry ON document(expires_at);
+-- LRU eviction scans this.
+CREATE INDEX document_accessed ON document(accessed_at);
+
+CREATE VIRTUAL TABLE document_fts USING fts5(
+    title,
+    text,
+    content = 'document',
+    content_rowid = 'id',
+    tokenize = 'porter unicode61'
+);
+
+CREATE TRIGGER document_fts_insert AFTER INSERT ON document BEGIN
+    INSERT INTO document_fts(rowid, title, text) VALUES (new.id, new.title, new.text);
+END;
+
+CREATE TRIGGER document_fts_delete AFTER DELETE ON document BEGIN
+    INSERT INTO document_fts(document_fts, rowid, title, text) VALUES ('delete', old.id, old.title, old.text);
+END;
+
+CREATE TRIGGER document_fts_update AFTER UPDATE ON document BEGIN
+    INSERT INTO document_fts(document_fts, rowid, title, text) VALUES ('delete', old.id, old.title, old.text);
+    INSERT INTO document_fts(rowid, title, text) VALUES (new.id, new.title, new.text);
+END;
+
+-- What the router learned about each domain. Starting at the tier that worked
+-- last time is the largest latency and battery win available on mobile.
+CREATE TABLE domain_routing (
+    domain          TEXT PRIMARY KEY NOT NULL,
+    tier            TEXT NOT NULL,
+    last_success_at INTEGER NOT NULL,
+    failure_count   INTEGER NOT NULL DEFAULT 0,
+    backoff_until   INTEGER
+);
+
+-- Search results are cached briefly so repeated agent queries do not re-fan-out.
+CREATE TABLE search_cache (
+    query        TEXT PRIMARY KEY NOT NULL,
+    results_json TEXT NOT NULL,
+    fetched_at   INTEGER NOT NULL,
+    expires_at   INTEGER NOT NULL
+);
+
+insertDocument:
+INSERT OR REPLACE INTO document(
+    url, final_url, canonical_url, title, text, markdown, content_hash,
+    fetched_at, expires_at, tier, source, status_code, content_type,
+    etag, last_modified, metadata_json, links_json, size_bytes, accessed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectByUrl:
+SELECT * FROM document WHERE url = ?;
+
+touchDocument:
+UPDATE document SET accessed_at = ? WHERE url = ?;
+
+searchFts:
+SELECT d.* FROM document d
+JOIN document_fts f ON d.id = f.rowid
+WHERE document_fts MATCH ?
+ORDER BY rank
+LIMIT ?;
+
+deleteExpired:
+DELETE FROM document WHERE expires_at < ?;
+
+evictLru:
+DELETE FROM document WHERE id IN (
+    SELECT id FROM document ORDER BY accessed_at ASC LIMIT ?
+);
+
+totalSize:
+SELECT COALESCE(SUM(size_bytes), 0) FROM document;
+
+documentCount:
+SELECT COUNT(*) FROM document;
+
+upsertRouting:
+INSERT OR REPLACE INTO domain_routing(domain, tier, last_success_at, failure_count, backoff_until)
+VALUES (?, ?, ?, ?, ?);
+
+selectRouting:
+SELECT * FROM domain_routing WHERE domain = ?;
+
+insertSearchCache:
+INSERT OR REPLACE INTO search_cache(query, results_json, fetched_at, expires_at)
+VALUES (?, ?, ?, ?);
+
+selectSearchCache:
+SELECT * FROM search_cache WHERE query = ? AND expires_at > ?;
