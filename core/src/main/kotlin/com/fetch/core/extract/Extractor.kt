@@ -21,11 +21,23 @@ public class Extractor(private val config: ExtractionConfig) {
         val canonicalUrl = doc.selectFirst("link[rel=canonical]")?.attr("abs:href")
         val metadata = MetadataExtractor.extract(doc, config.extractJsonLd)
 
+        // A client-rendered page still ships its data as JSON in the markup, so
+        // try that before the scripts holding it are removed. Only used when
+        // ordinary extraction comes back too thin to be worth indexing.
+        val recovered = if (config.recoverEmbeddedState) EmbeddedState.recover(doc) else null
+
         stripNoise(doc)
 
         val main = MainContentFinder.find(doc)
-        val text = main.text().take(config.maxExtractedChars)
-        val markdown = MarkdownWriter.convert(main).take(config.maxExtractedChars)
+        val markup = main.text().take(config.maxExtractedChars)
+
+        // Prefer the payload only when the markup is too thin to index and the
+        // payload actually says more.
+        val useRecovered = recovered != null &&
+            markup.length < config.minUsefulTextLength &&
+            recovered.length > markup.length
+        val text = if (useRecovered) recovered!!.take(config.maxExtractedChars) else markup
+        val markdown = if (useRecovered) text else MarkdownWriter.convert(main).take(config.maxExtractedChars)
 
         return Extracted(
             title = doc.title().takeIf { it.isNotBlank() },

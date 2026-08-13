@@ -101,6 +101,12 @@ public data class ExtractionConfig(
     val maxExtractedChars: Int = 500_000,
     val extractJsonLd: Boolean = true,
     val extractLinks: Boolean = true,
+    /**
+     * Read the JSON a client-rendered page ships beside its empty shell when
+     * ordinary extraction comes back thin. Turns some pages that would need a
+     * browser into ones that do not.
+     */
+    val recoverEmbeddedState: Boolean = true,
 )
 
 /** Escalation policy: which tiers may run, and in what order. */
