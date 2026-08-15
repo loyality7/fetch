@@ -1,7 +1,9 @@
 package com.fetch.service.dto
 
 import com.fetch.core.engine.Health
+import com.fetch.core.model.AskResponse
 import com.fetch.core.model.Document
+import com.fetch.core.model.Evidence
 import com.fetch.core.model.SearchResponse
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -21,6 +23,50 @@ public data class SearchRequest(
 public data class OpenRequest(
     val url: String,
     @SerialName("cache_mode") val cacheMode: String = "default",
+)
+
+@Serializable
+public data class ExtractRequest(
+    val url: String? = null,
+    val content: String? = null,
+)
+
+@Serializable
+public data class FindRequest(
+    val url: String,
+    val query: String,
+    @SerialName("max_passages") val maxPassages: Int = 5,
+)
+
+@Serializable
+public data class AddRequest(
+    val content: String,
+    val title: String? = null,
+    val url: String? = null,
+)
+
+@Serializable
+public data class AskRequest(
+    val query: String,
+    @SerialName("max_sources") val maxSources: Int = 5,
+)
+
+@Serializable
+public data class EvidenceDto(
+    @SerialName("source_url") val sourceUrl: String,
+    val title: String?,
+    val passage: String,
+    @SerialName("fetched_at") val fetchedAt: Long,
+    val source: String,
+)
+
+@Serializable
+public data class AskResponseDto(
+    val query: String,
+    val context: String,
+    val evidence: List<EvidenceDto>,
+    @SerialName("duration_ms") val durationMs: Long,
+    @SerialName("request_id") val requestId: String,
 )
 
 @Serializable
@@ -59,6 +105,7 @@ public data class HealthDto(
     val capabilities: Map<String, Boolean>,
     @SerialName("indexed_documents") val indexedDocuments: Long,
     @SerialName("index_size_bytes") val indexSizeBytes: Long,
+    @SerialName("browser_available") val browserAvailable: Boolean,
     @SerialName("request_id") val requestId: String,
 )
 
@@ -96,5 +143,22 @@ internal fun Health.toDto(requestId: String) = HealthDto(
     capabilities = capabilities,
     indexedDocuments = indexedDocuments,
     indexSizeBytes = indexSizeBytes,
+    browserAvailable = browserAvailable,
+    requestId = requestId,
+)
+
+internal fun Evidence.toDto() = EvidenceDto(
+    sourceUrl = sourceUrl,
+    title = title,
+    passage = passage,
+    fetchedAt = fetchedAt,
+    source = source.name,
+)
+
+internal fun AskResponse.toDto(requestId: String) = AskResponseDto(
+    query = query,
+    context = context,
+    evidence = evidence.map { it.toDto() },
+    durationMs = durationMs,
     requestId = requestId,
 )

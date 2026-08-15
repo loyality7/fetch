@@ -73,6 +73,69 @@ public class ServiceIntegrationTest {
             server.stop()
         }
     }
+
+    @Test
+    public fun testAllV1Endpoints() {
+        val manager = ApiTokenManager(context)
+        val token = manager.getOrCreateToken()
+        val fakeEngine = FakeWebEngine()
+
+        val server = LocalApiServer(fakeEngine, token, port = 8480)
+        server.start()
+
+        try {
+            // /v1/search
+            postJson("http://127.0.0.1:8480/v1/search", token, """{"query":"kotlin","max_results":5}""").also { (code, body) ->
+                assertEquals(200, code)
+                assertTrue(body.contains("kotlin"))
+            }
+
+            // /v1/open
+            postJson("http://127.0.0.1:8480/v1/open", token, """{"url":"https://kotlinlang.org"}""").also { (code, body) ->
+                assertEquals(200, code)
+                assertTrue(body.contains("https://kotlinlang.org"))
+            }
+
+            // /v1/extract
+            postJson("http://127.0.0.1:8480/v1/extract", token, """{"content":"# Hello"}""").also { (code, body) ->
+                assertEquals(200, code)
+                assertTrue(body.contains("content"))
+            }
+
+            // /v1/find
+            postJson("http://127.0.0.1:8480/v1/find", token, """{"url":"https://kotlinlang.org","query":"test"}""").also { (code, body) ->
+                assertEquals(200, code)
+            }
+
+            // /v1/add
+            postJson("http://127.0.0.1:8480/v1/add", token, """{"content":"User text","title":"Note"}""").also { (code, body) ->
+                assertEquals(200, code)
+            }
+
+            // /v1/ask
+            postJson("http://127.0.0.1:8480/v1/ask", token, """{"query":"what is kotlin?"}""").also { (code, body) ->
+                assertEquals(200, code)
+                assertTrue(body.contains("context"))
+            }
+        } finally {
+            server.stop()
+        }
+    }
+
+    private fun postJson(urlString: String, token: String, jsonBody: String): Pair<Int, String> {
+        val url = java.net.URL(urlString)
+        val connection = url.openConnection() as java.net.HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.doOutput = true
+        connection.outputStream.use { it.write(jsonBody.toByteArray(Charsets.UTF_8)) }
+
+        val code = connection.responseCode
+        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+        val responseText = stream?.bufferedReader()?.readText().orEmpty()
+        return code to responseText
+    }
 }
 
 private class FakeWebEngine : WebEngine {

@@ -3,8 +3,12 @@ package com.fetch.service.api
 import com.fetch.core.engine.WebEngine
 import com.fetch.core.error.EngineException
 import com.fetch.core.error.ErrorCode
+import com.fetch.service.dto.AddRequest
+import com.fetch.service.dto.AskRequest
 import com.fetch.service.dto.ErrorBody
 import com.fetch.service.dto.ErrorResponse
+import com.fetch.service.dto.ExtractRequest
+import com.fetch.service.dto.FindRequest
 import com.fetch.service.dto.OpenRequest
 import com.fetch.service.dto.SearchRequest
 import com.fetch.service.dto.toDto
@@ -33,6 +37,35 @@ internal fun Application.installRoutes(engine: WebEngine, token: String) {
                 withGuard(token) { requestId ->
                     val body = call.receive<OpenRequest>()
                     call.respond(engine.open(body.url).toDto(requestId))
+                }
+            }
+
+            post("/extract") {
+                withGuard(token) { requestId ->
+                    val body = call.receive<ExtractRequest>()
+                    call.respond(engine.extract(body.url, body.content).toDto(requestId))
+                }
+            }
+
+            post("/find") {
+                withGuard(token) { requestId ->
+                    val body = call.receive<FindRequest>()
+                    val passages = engine.find(body.url, body.query, body.maxPassages)
+                    call.respond(passages.map { it.toDto() })
+                }
+            }
+
+            post("/add") {
+                withGuard(token) { requestId ->
+                    val body = call.receive<AddRequest>()
+                    call.respond(engine.add(body.content, body.title, body.url).toDto(requestId))
+                }
+            }
+
+            post("/ask") {
+                withGuard(token) { requestId ->
+                    val body = call.receive<AskRequest>()
+                    call.respond(engine.ask(body.query, body.maxSources).toDto(requestId))
                 }
             }
 
