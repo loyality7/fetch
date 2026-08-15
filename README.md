@@ -1,130 +1,78 @@
-# `fetch` — Developer Integration, REST API & Configuration Reference
+# Fetch Engine (`fetch`)
 
-`fetch` is an open-source, local-first web extraction, indexing, and retrieval engine for Android. It provides structured text extraction, fast FTS5 full-text search with BM25 ranking, dynamic content TTL caching, per-domain backoff, and a headless `WebView` browser fallback for single-page applications (SPAs).
+> **Local-First, Privacy-Preserving Web Extraction, Search & Retrieval Engine for Android.**
+
+`fetch` is an open-source, lightweight Android library and foreground service built to enable on-device web scraping, single-page application (SPA) rendering, structured text extraction, fast FTS5 full-text search, and local REST API hosting directly on mobile devices.
 
 ---
 
-## 1. SDK Embedding Guide
+## 🤔 Why We Built `fetch`
 
-### Add Dependency
-Include the `:core` and optional `:service` modules in your `build.gradle.kts`:
+Modern mobile applications and AI agents running on-device face significant challenges when fetching and reading web content:
+
+1. **High Battery & Data Costs**: Desktop web scraping tools (like Puppeteer or Playwright) cannot run efficiently on Android devices due to heavy memory footprints and CPU throttling.
+2. **Dynamic SPA Hydration**: Standard HTTP clients (like OkHttp) fail to capture dynamic content rendered by modern JavaScript frameworks (`Next.js`, `Nuxt`, `React`).
+3. **Privacy & Offline Resilience**: Relying on external cloud scraping APIs exposes user network traffic to third parties, requires constant internet connection, and incurs per-request API costs.
+
+**`fetch` resolves these challenges by providing a unified, multi-tiered engine:**
+- **Tier 1 (Instant Index Lookup)**: Sub-millisecond local SQLite FTS5 search.
+- **Tier 2 (Lightweight HTTP Fetcher)**: Fast, low-bandwidth HTTP extraction with AST-to-Markdown conversion.
+- **Tier 3 (Offscreen WebView Browser)**: Headless, in-process Android `WebView` fallback for JavaScript-rendered SPAs with automatic asset blocking (images, fonts, media).
+
+---
+
+## ✨ Key Features
+
+- ⚡ **SQLite FTS5 Full-Text Search**: Fast BM25 relevance ranking across locally indexed documents.
+- 🌐 **Headless WebView SPA Support**: Renders client-side dynamic frameworks with automatic session lifecycle cleanup and zero memory leaks.
+- 🧹 **Clean Markdown Extraction**: Converts HTML trees into clean, formatted Markdown while stripping ads, scripts, and clutter.
+- 🧩 **Hydration Fragment Recovery**: Reconstructs prose split across sibling JSON nodes (`__NEXT_DATA__`, `__NUXT__`).
+- 🛡️ **SSRF Guard & Adversarial Hardening**: Blocks requests targeting private IP ranges (`127.0.0.1`, `10.0.0.0/8`) and prevents stack-overflow attacks via HTML recursion depth caps.
+- ⏳ **Per-Domain Backoff & Rate-Limiting**: Respects `Retry-After` HTTP headers and persists host-level backoff windows.
+- 🚀 **Local REST API Service**: Exposes a secure `http://127.0.0.1:8080` local API server backed by Android KeyStore AES-256 token encryption.
+
+---
+
+## 📚 Documentation Index (`docs/v1/`)
+
+Detailed guides are modularized inside the [`docs/v1/`](./docs/v1/) directory:
+
+- 📖 **[SDK Embedding Guide](./docs/v1/sdk_embedding_guide.md)** — Step-by-step instructions for embedding `:core` in Android apps.
+- 🔌 **[REST API Specification](./docs/v1/rest_api_specification.md)** — Full endpoint schemas (`/v1/search`, `/v1/open`, `/v1/extract`, `/v1/find`, `/v1/add`, `/v1/ask`, `/v1/health`).
+- ⚠️ **[Error Codes Reference](./docs/v1/error_codes.md)** — Comprehensive list of error codes, HTTP statuses, and remediations.
+- ⚙️ **[Engine Configuration](./docs/v1/engine_configuration.md)** — Customizing HTTP timeouts, database size limits, and browser settings.
+- 📱 **[Mobile Testing Guide](./docs/v1/mobile_testing_guide.md)** — Instructions for running instrumented integration tests live on physical Android phones.
+- ✅ **[Verification Report](./docs/v1/readiness_and_testing_verification.md)** — On-device test results and subsystem readiness matrix.
+
+---
+
+## ⚡ Quick Start (SDK Usage)
 
 ```kotlin
-dependencies {
-    implementation("com.fetch:core:1.0.0")
-    implementation("com.fetch:service:1.0.0") // Optional: for HTTP API Server
-}
-```
-
-### Initializing the Engine
-Instantiate the engine via the public factory function `FetchEngine.create(...)`:
-
-```kotlin
-import android.content.Context
 import com.fetch.core.sdk.FetchEngine
-import com.fetch.core.config.EngineConfig
 import com.fetch.core.browser.WebViewBrowserBackend
 import com.fetch.core.model.CacheMode
 
-// 1. (Optional) Initialize Browser Backend for SPAs
-val browserBackend = WebViewBrowserBackend(context)
+// 1. Initialize Browser Backend for SPA support
+val browser = WebViewBrowserBackend(context)
 
-// 2. Instantiate FetchEngine
-val engine = FetchEngine.create(
-    context = context,
-    config = EngineConfig(), // Default configuration
-    browser = browserBackend
-)
+// 2. Instantiate Engine
+val engine = FetchEngine.create(context, browser = browser)
 
-// 3. Perform Engine Operations
+// 3. Fetch & Index Web Content
 val document = engine.fetch("https://example.com/article", cacheMode = CacheMode.DEFAULT)
 println("Title: ${document.title}")
-println("Markdown: ${document.markdown}")
+println("Markdown:\n${document.markdown}")
 
-// 4. Clean Shutdown
+// 4. Search Local Index with BM25 Ranking
+val results = engine.search(query = "quantum computing", limit = 5)
+
+// 5. Clean Shutdown
 engine.close()
 ```
 
 ---
 
-## 2. Local REST API Reference (v1)
+## 📄 Licence
 
-When running `LocalApiServer` (via `FetchForegroundService`), the API is available locally at `http://127.0.0.1:8080` (or configured port). All endpoints except `/v1/health` require the `Authorization: Bearer <TOKEN>` header.
-
-### Endpoints
-
-#### `POST /v1/search`
-Queries the indexed document corpus using FTS5 full-text search.
-- **Request Body**: `{"query": "quantum mechanics", "limit": 10}`
-- **Response**: `200 OK` with JSON array of matching `DocumentDto` objects.
-
-#### `POST /v1/open`
-Fetches a URL, extracts content, indexes it, and returns the parsed `Document`.
-- **Request Body**: `{"url": "https://example.com/article", "cacheMode": "DEFAULT"}`
-- **Response**: `200 OK` returning `DocumentDto`.
-
-#### `POST /v1/extract`
-Parses raw HTML string into clean markdown without performing network calls.
-- **Request Body**: `{"html": "<html>...</html>", "baseUrl": "https://example.com"}`
-- **Response**: `200 OK` returning `ExtractedDto` (`text`, `markdown`, `title`, `metadata`).
-
-#### `POST /v1/find`
-Retrieves paragraph-level evidence passages matching a query.
-- **Request Body**: `{"url": "https://example.com/article", "query": "quantum", "maxPassages": 3}`
-- **Response**: `200 OK` returning `List<EvidenceDto>`.
-
-#### `POST /v1/add`
-Directly indexes custom text or HTML into the search store.
-- **Request Body**: `{"content": "Prose content...", "title": "Custom Document", "url": "https://example.com/custom"}`
-- **Response**: `200 OK` returning indexed `DocumentDto`.
-
-#### `POST /v1/ask`
-Performs intent classification, web discovery, passage extraction, and synthesizes an answer with citations.
-- **Request Body**: `{"query": "What is quantum computing?", "maxEvidence": 5}`
-- **Response**: `200 OK` returning `AskResponseDto` (`answer`, `evidence`, `query`, `vertical`).
-
-#### `GET /v1/health`
-Returns real-time operational health and lock-free telemetry metrics.
-- **Auth**: Unauthenticated.
-- **Response**: `200 OK` returning `HealthDto` containing status, document count, storage usage, and operational metrics (`total_requests`, `index_hits`, `escalations_to_browser`, `avg_fetch_latency_ms`, etc.).
-
----
-
-## 3. Error Codes Reference
-
-| Error Code | HTTP Status | Description |
-| :--- | :--- | :--- |
-| `UNAUTHORIZED` | `401` | Missing or invalid API bearer token |
-| `RESPONSE_TOO_LARGE` | `413` | Request payload, query, or URL exceeded length limits |
-| `RATE_LIMITED` | `429` | Domain is currently in backoff window following a `429` or `503` server response |
-| `SSRF_BLOCKED` | `400` | URL targets internal/private IP ranges (`127.0.0.1`, `10.0.0.0/8`, etc.) or unregistered schemes |
-| `UNSUPPORTED_CONTENT` | `415` | Content-Type is not supported for extraction (e.g. binary media) |
-| `INDEX_ONLY` | `404` | Document not found in local index under `CACHE_ONLY` mode |
-| `HTTP_ERROR` | `502` | Upstream HTTP fetch failed with a non-2xx status code |
-| `BROWSER_FAILED` | `500` | Headless WebView rendering failed or timed out |
-
----
-
-## 4. Configuration Reference
-
-```kotlin
-data class EngineConfig(
-    val http: HttpConfig = HttpConfig(),
-    val extraction: ExtractionConfig = ExtractionConfig(),
-    val index: IndexConfig = IndexConfig(),
-    val browser: BrowserConfig = BrowserConfig(),
-)
-```
-
-- **`http.timeout`**: HTTP request timeout (Default: `15.seconds`).
-- **`http.maxResponseBodyBytes`**: Max download size per HTTP request (Default: `10 MB`).
-- **`index.maxDatabaseSizeBytes`**: Database storage ceiling before LRU pruning triggers (Default: `500 MB`).
-- **`extraction.maxExtractedChars`**: Maximum character limit for extracted markdown (Default: `500,000`).
-- **`browser.timeout`**: Maximum wait time for SPA JavaScript rendering (Default: `15.seconds`).
-
----
-
-## 5. Non-Goals
-
-1. **Not a General Web Browser**: `fetch` does not aim to replace full browser engines or render interactive DOM UIs.
-2. **Not a Heavy Vector DB**: Uses FTS5 BM25 keyword search and local intent rules instead of heavy neural vector embeddings to maintain ultra-low battery and memory footprint on mobile devices.
+This project is open-source under the [MIT License](./LICENSE). Third-party dependency notices are recorded in [NOTICES.md](./NOTICES.md).
