@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 public class JsonSearchSource(
     private val definition: SourceDefinition,
     private val userAgent: String = DEFAULT_USER_AGENT,
-    private val client: OkHttpClient = sharedClient,
+    private val client: OkHttpClient = getOrCreateSharedClient(),
 ) : SearchSource {
 
     override val name: String get() = definition.name
@@ -121,13 +121,19 @@ public class JsonSearchSource(
         const val SNIPPET = 300
         const val DEFAULT_USER_AGENT = "fetch/0.1"
 
-        val PLACEHOLDER = Regex("\\{([a-zA-Z0-9_.]+)}")
+        val PLACEHOLDER by lazy { Regex("\\{([a-zA-Z0-9_.]+)}") }
 
-        /** Shared so a fan-out reuses connections instead of one client per source. */
-        val sharedClient: OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .build()
+        @Volatile
+        private var sharedClientInstance: OkHttpClient? = null
+
+        fun getOrCreateSharedClient(): OkHttpClient {
+            return sharedClientInstance ?: synchronized(this) {
+                sharedClientInstance ?: OkHttpClient.Builder()
+                    .connectTimeout(5, TimeUnit.SECONDS)
+                    .readTimeout(8, TimeUnit.SECONDS)
+                    .build().also { sharedClientInstance = it }
+            }
+        }
 
         /** Response text arrives as markup often enough to be worth handling here. */
         fun clean(value: String): String =
