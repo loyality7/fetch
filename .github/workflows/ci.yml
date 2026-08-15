@@ -53,13 +53,18 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Enable KVM / AVD acceleration
+        run: |
+          sysctl -a | grep machdep.cpu.features || true
+
       - name: Run Instrumented Tests on Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 31
+          api-level: 29
           target: default
           arch: x86_64
-          profile: Nexus 6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio
           script: ./gradlew connectedCheck --stacktrace
 
       - name: Upload instrumented test reports
