@@ -11,21 +11,29 @@ public object MarkdownWriter {
         root.childNodes().forEach { render(it, this) }
     }.replace(Regex("\n{3,}"), "\n\n").trim()
 
-    private fun render(node: Node, out: StringBuilder) {
+    private fun render(node: Node, out: StringBuilder, depth: Int = 0) {
+        if (depth > 50) {
+            out.append(node.outerHtml())
+            return
+        }
         when (node) {
             is TextNode -> out.append(node.text())
-            is Element -> renderElement(node, out)
+            is Element -> renderElement(node, out, depth)
         }
     }
 
-    private fun renderElement(el: Element, out: StringBuilder) {
+    private fun renderElement(el: Element, out: StringBuilder, depth: Int = 0) {
+        if (depth > 50) {
+            out.append(el.text())
+            return
+        }
         when (el.tagName()) {
             "h1", "h2", "h3", "h4", "h5", "h6" -> {
                 val level = el.tagName().substring(1).toInt()
                 out.append("\n\n").append("#".repeat(level)).append(' ').append(el.text()).append("\n\n")
             }
 
-            "p" -> out.append("\n\n").append(inline(el)).append("\n\n")
+            "p" -> out.append("\n\n").append(inline(el, depth + 1)).append("\n\n")
             "br" -> out.append('\n')
             "hr" -> out.append("\n\n---\n\n")
 
@@ -33,7 +41,7 @@ public object MarkdownWriter {
                 out.append('\n')
                 el.children().forEachIndexed { i, li ->
                     val marker = if (el.tagName() == "ol") "${i + 1}." else "-"
-                    out.append(marker).append(' ').append(inline(li)).append('\n')
+                    out.append(marker).append(' ').append(inline(li, depth + 1)).append('\n')
                 }
                 out.append('\n')
             }
@@ -43,11 +51,15 @@ public object MarkdownWriter {
             "blockquote" -> out.append("\n\n> ").append(el.text()).append("\n\n")
             "table" -> out.append('\n').append(table(el)).append('\n')
 
-            else -> el.childNodes().forEach { render(it, out) }
+            else -> el.childNodes().forEach { render(it, out, depth + 1) }
         }
     }
 
-    private fun inline(el: Element): String = buildString {
+    private fun inline(el: Element, depth: Int = 0): String = buildString {
+        if (depth > 50) {
+            append(el.text())
+            return@buildString
+        }
         el.childNodes().forEach { child ->
             when {
                 child is TextNode -> append(child.text())
@@ -63,7 +75,7 @@ public object MarkdownWriter {
                 child is Element && child.tagName() == "code" ->
                     append('`').append(child.text()).append('`')
 
-                child is Element -> append(inline(child))
+                child is Element -> append(inline(child, depth + 1))
             }
         }
     }
