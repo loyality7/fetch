@@ -213,14 +213,47 @@ public class WebEngineImpl(
      * than the top of the page, and it needs no model.
      */
     private fun passages(document: Document, query: String, maxPassages: Int): List<Evidence> {
-        val terms = query.lowercase().split(Regex("\\W+")).filter { it.length > 2 }.toSet()
-        if (terms.isEmpty()) return emptyList()
+        val queryWords = query.lowercase().split(Regex("\\W+")).filter { it.length > 2 }
+        if (queryWords.isEmpty()) return emptyList()
+
+        val uniqueTerms = queryWords.toSet()
+        // Frequency of terms in the document to estimate term rarity (Inverse Frequency weight)
+        val docLower = document.markdown.lowercase()
+        val termRarityWeights = uniqueTerms.associateWith { term ->
+            val count = docLower.split(Regex("\\W+")).count { it == term }
+            1.0 / (1.0 + Math.log(1.0 + count))
+        }
 
         return document.markdown.split(Regex("\n{2,}"))
             .map(String::trim)
             .filter { it.length >= MIN_PASSAGE_LENGTH }
-            .map { passage -> passage to terms.count { passage.contains(it, ignoreCase = true) } }
-            .filter { it.second > 0 }
+            .map { passage ->
+                val passageLower = passage.lowercase()
+                val passageWords = passageLower.split(Regex("\\W+"))
+
+                // Unique term coverage score weighted by rarity
+                val matchedTerms = uniqueTerms.filter { passageLower.contains(it) }
+                if (matchedTerms.isEmpty()) return@map passage to -1.0
+
+                val coverageScore = matchedTerms.sumOf { termRarityWeights[it] ?: 1.0 } * (matchedTerms.size.toDouble() / uniqueTerms.size.toDouble())
+
+                // Term proximity: min window containing all matched terms
+                val termIndices = matchedTerms.mapNotNull { term ->
+                    val idx = passageWords.indexOf(term)
+                    if (idx >= 0) idx else null
+                }
+
+                val proximityBonus = if (termIndices.size >= 2) {
+                    val windowSpan = (termIndices.maxOrNull()!! - termIndices.minOrNull()!! + 1).toDouble()
+                    1.0 / (1.0 + (windowSpan / termIndices.size.toDouble()))
+                } else {
+                    0.5
+                }
+
+                val totalScore = (coverageScore * 2.0) + proximityBonus
+                passage to totalScore
+            }
+            .filter { it.second > 0.0 }
             .sortedByDescending { it.second }
             .take(maxPassages)
             .map { (passage, _) ->
