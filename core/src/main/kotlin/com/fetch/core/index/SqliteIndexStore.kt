@@ -69,6 +69,30 @@ public class SqliteIndexStore(
         }
     }
 
+    override suspend fun getRaw(url: String): Document? = withContext(dispatcher) {
+        lock.withLock {
+            connection.prepare(
+                "SELECT * FROM document WHERE url = ?",
+            ).use { statement ->
+                statement.bindText(1, url)
+                if (!statement.step()) return@withContext null
+                readDocument(statement)
+            }
+        }
+    }
+
+    override suspend fun getByContentHash(hash: String): Document? = withContext(dispatcher) {
+        lock.withLock {
+            connection.prepare(
+                "SELECT * FROM document WHERE content_hash = ? ORDER BY fetched_at DESC LIMIT 1",
+            ).use { statement ->
+                statement.bindText(1, hash)
+                if (!statement.step()) return@withContext null
+                readDocument(statement)
+            }
+        }
+    }
+
     override suspend fun put(document: Document, ttlMillis: Long): Unit = withContext(dispatcher) {
         lock.withLock {
             val now = System.currentTimeMillis()
@@ -94,8 +118,8 @@ public class SqliteIndexStore(
                 statement.bindText(11, document.source.name)
                 document.statusCode?.let { statement.bindLong(12, it.toLong()) } ?: statement.bindNull(12)
                 document.contentType?.let { statement.bindText(13, it) } ?: statement.bindNull(13)
-                statement.bindNull(14)
-                statement.bindNull(15)
+                document.etag?.let { statement.bindText(14, it) } ?: statement.bindNull(14)
+                document.lastModified?.let { statement.bindText(15, it) } ?: statement.bindNull(15)
                 statement.bindText(
                     16,
                     json.encodeToString(MetadataRow.serializer(), MetadataRow.from(document.metadata)),
@@ -236,6 +260,8 @@ public class SqliteIndexStore(
             source = Source.valueOf(statement.getText(11)),
             statusCode = if (statement.isNull(12)) null else statement.getLong(12).toInt(),
             contentType = if (statement.isNull(13)) null else statement.getText(13),
+            etag = if (statement.isNull(14)) null else statement.getText(14),
+            lastModified = if (statement.isNull(15)) null else statement.getText(15),
             links = links.map { Link(it.url, it.text, it.rel) },
             metadata = metadata.toModel(),
         )

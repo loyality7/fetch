@@ -286,4 +286,25 @@ class FetchRouterTest {
         assertEquals(config.index.documentationTtl.inWholeMilliseconds, docsTtl)
         assertTrue(newsTtl < docsTtl)
     }
+
+    @Test
+    fun `handles 304 Not Modified with conditional request headers`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("ETag", "\"v1\"").setBody(articleHtml()))
+        server.enqueue(MockResponse().setResponseCode(304))
+
+        val subject = router()
+        val url = server.url("/conditional").toString()
+
+        val doc1 = subject.fetch(url, CacheMode.DEFAULT)
+        assertEquals(Tier.HTTP, doc1.tier)
+
+        // Force a network re-check bypassing immediate unexpired index match
+        val doc2 = subject.fetch(url, CacheMode.NETWORK_ONLY)
+        assertEquals(Tier.INDEX, doc2.tier)
+
+        val firstReq = server.takeRequest()
+        val secondReq = server.takeRequest()
+
+        assertEquals("\"v1\"", secondReq.getHeader("If-None-Match"))
+    }
 }

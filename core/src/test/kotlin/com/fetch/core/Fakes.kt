@@ -22,13 +22,17 @@ class FakeIndexStore : IndexStore {
     var lastPutTtlMillis: Long = 0
         private set
 
-    // Mirrors SqliteIndexStore: anything served from storage reports Tier.INDEX,
-    // whatever tier originally produced it.
     override suspend fun get(url: String): Document? =
         documents[url]
             ?.takeIf { it.second > System.currentTimeMillis() }
             ?.first
             ?.copy(tier = com.fetch.core.model.Tier.INDEX)
+
+    override suspend fun getRaw(url: String): Document? =
+        documents[url]?.first?.copy(tier = com.fetch.core.model.Tier.INDEX)
+
+    override suspend fun getByContentHash(hash: String): Document? =
+        documents.values.firstOrNull { it.first.contentHash == hash }?.first
 
     override suspend fun put(document: Document, ttlMillis: Long) {
         putCount++

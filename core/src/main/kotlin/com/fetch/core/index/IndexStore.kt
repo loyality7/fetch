@@ -15,6 +15,12 @@ public interface IndexStore : AutoCloseable {
     /** Returns null on a miss or when the entry has expired. */
     public suspend fun get(url: String): Document?
 
+    /** Returns stored document regardless of expiry (useful for conditional headers & deduplication). */
+    public suspend fun getRaw(url: String): Document? = get(url)
+
+    /** Finds existing document by contentHash if stored under any URL. */
+    public suspend fun getByContentHash(hash: String): Document? = null
+
     public suspend fun put(document: Document, ttlMillis: Long)
 
     /** Keyword search over the index. Offline, always. */

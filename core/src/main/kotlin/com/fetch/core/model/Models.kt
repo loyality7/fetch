@@ -100,6 +100,8 @@ public data class Document(
     val source: Source,
     val statusCode: Int?,
     val contentType: String?,
+    val etag: String? = null,
+    val lastModified: String? = null,
     val links: List<Link> = emptyList(),
     val metadata: PageMetadata = PageMetadata(),
     /** False when the page never settled and this is a partial capture. */

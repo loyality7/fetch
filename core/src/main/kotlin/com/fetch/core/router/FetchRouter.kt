@@ -45,22 +45,50 @@ public class FetchRouter(
         }
 
         val learned = index.routingFor(domain)
-        val document = fetchLive(url, domain, learned)
+        val cached = index.getRaw(url)
+        val document = fetchLive(url, domain, learned, cached)
 
-        index.put(document, ttlFor(document))
+        // Content hash deduplication & conditional request handling:
+        // If content is unchanged (or 304 returned), reuse stored body and update TTL without full rewrite.
+        val existingByHash = index.getByContentHash(document.contentHash)
+        val finalDocument = if (existingByHash != null && existingByHash.urls.requested != document.urls.requested) {
+            // Content matches an existing document under another URL: reuse extracted content/text/markdown
+            document.copy(
+                text = existingByHash.text,
+                markdown = existingByHash.markdown,
+                links = existingByHash.links,
+                metadata = existingByHash.metadata,
+            )
+        } else {
+            document
+        }
+
+        index.put(finalDocument, ttlFor(finalDocument))
         index.recordRouting(
-            DomainRouting(domain = domain, tier = document.tier.name, lastSuccessAt = System.currentTimeMillis()),
+            DomainRouting(domain = domain, tier = finalDocument.tier.name, lastSuccessAt = System.currentTimeMillis()),
         )
-        return document
+        return finalDocument
     }
 
-    private suspend fun fetchLive(url: String, domain: String, learned: DomainRouting?): Document {
+    private suspend fun fetchLive(url: String, domain: String, learned: DomainRouting?, cached: Document?): Document {
         // A domain that needed the browser last time gets it immediately; paying
         // for the HTTP attempt again just to fail is the cost we are avoiding.
         val skipHttp = learned?.tier == Tier.BROWSER.name
 
         if (!skipHttp) {
-            val result = http.fetch(url)
+            val headers = mutableMapOf<String, String>()
+            cached?.etag?.let { headers["If-None-Match"] = it }
+            cached?.lastModified?.let { headers["If-Modified-Since"] = it }
+
+            val result = http.fetch(url, headers)
+
+            // 304 Not Modified: return existing cached document updated with fresh fetchedAt timestamp
+            if (result.statusCode == 304 && cached != null) {
+                return cached.copy(
+                    fetchedAt = System.currentTimeMillis(),
+                    tier = Tier.INDEX,
+                )
+            }
 
             // An error status is a failure, not a hint that the page needs
             // JavaScript. Escalating here would launch a browser to render an
@@ -77,7 +105,7 @@ public class FetchRouter(
             val isHtml = com.fetch.core.extract.ContentType.detect(result.contentType, result.body, url) ==
                 com.fetch.core.extract.ContentType.HTML
             if (!isHtml || !needsBrowser(extracted.text, result.body)) {
-                return build(url, result.finalUrl, extracted, Tier.HTTP, result.statusCode, result.contentType)
+                return build(url, result.finalUrl, extracted, Tier.HTTP, result.statusCode, result.contentType, result.etag, result.lastModified)
             }
             Log.debug("escalating $domain to browser tier")
         }
@@ -109,6 +137,8 @@ public class FetchRouter(
         tier: Tier,
         statusCode: Int?,
         contentType: String?,
+        etag: String? = null,
+        lastModified: String? = null,
     ): Document = Document(
         urls = Urls(requested = requested, final = final, canonical = extracted.canonicalUrl),
         title = extracted.title,
@@ -120,6 +150,8 @@ public class FetchRouter(
         source = Source.WEB,
         statusCode = statusCode,
         contentType = contentType,
+        etag = etag,
+        lastModified = lastModified,
         links = extracted.links,
         metadata = extracted.metadata,
     )
