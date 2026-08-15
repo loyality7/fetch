@@ -204,4 +204,21 @@ class EmbeddedStateTest {
         assertFalse(result.text.contains("MaxWidth"))
         assertTrue(result.text.contains("formal inquiry"))
     }
+
+    @Test
+    fun `joins adjacent fragments from sibling nodes`() {
+        val part1 = "The investigation concluded that consumer privacy rules were violated"
+        val part2 = "and immediate corrective measures have been implemented by the oversight board."
+        val html = """
+            <html><head><title>App</title></head><body><div id="root"></div>
+              <script id="__NEXT_DATA__" type="application/json">
+                {"props":{"pageProps":{"articleBody1":"$part1","articleBody2":"$part2"}}}
+              </script>
+            </body></html>
+        """.trimIndent()
+
+        val result = extractor.extract(html, "https://app.example.com")
+
+        assertTrue(result.text.contains("$part1 $part2"))
+    }
 }

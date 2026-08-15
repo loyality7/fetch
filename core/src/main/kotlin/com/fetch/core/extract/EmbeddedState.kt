@@ -58,14 +58,39 @@ internal object EmbeddedState {
             }
         }
 
-        val sentences = payloads
+        val rawFragments = payloads
             .asSequence()
             .mapNotNull { runCatching { json.parseToJsonElement(it.trim().removeSuffix(";")) }.getOrNull() }
             .flatMap { collect(it, key = null).asSequence() }
             .distinct()
             .toList()
 
-        return sentences.takeIf { it.isNotEmpty() }?.joinToString("\n\n")
+        val mergedParagraphs = buildList<String> {
+            var current: StringBuilder? = null
+            for (fragment in rawFragments) {
+                if (current == null) {
+                    current = StringBuilder(fragment)
+                } else {
+                    val prev = current.toString().trim()
+                    // If current fragment continues previous (doesn't start with capital or starts mid-sentence), join them
+                    val continuesPrevious = !fragment.first().isUpperCase() || !prev.endsWith(".") && !prev.endsWith("?") && !prev.endsWith("!")
+                    if (continuesPrevious) {
+                        if (!prev.endsWith(" ") && !fragment.startsWith(" ")) {
+                            current.append(" ")
+                        }
+                        current.append(fragment)
+                    } else {
+                        add(current.toString())
+                        current = StringBuilder(fragment)
+                    }
+                }
+            }
+            if (current != null && current.isNotEmpty()) {
+                add(current.toString())
+            }
+        }
+
+        return mergedParagraphs.takeIf { it.isNotEmpty() }?.joinToString("\n\n")
     }
 
     /**
