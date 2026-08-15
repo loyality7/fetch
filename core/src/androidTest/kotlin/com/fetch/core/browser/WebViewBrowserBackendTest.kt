@@ -28,12 +28,13 @@ class WebViewBrowserBackendTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val backend = WebViewBrowserBackend(context, BrowserConfig())
 
-        val htmlData = "<html><body><h1>SPA Test</h1><div id=\"root\">Placeholder</div></body></html>"
+        // Test real client-side JavaScript execution rendering content dynamically into the DOM
+        val htmlData = "<html><body><div id=\"root\"></div><script>setTimeout(function(){ document.getElementById('root').innerHTML = '<h2>Real JS Dynamic Rendered Title</h2>'; }, 50);</script></body></html>"
         val dataUrl = "data:text/html;charset=utf-8," + java.net.URLEncoder.encode(htmlData, "UTF-8")
 
         val result = backend.fetch(dataUrl, WaitUntil.NETWORK_IDLE)
         assertNotNull(result.html)
-        assertTrue("Extracted HTML must contain content", result.html.contains("SPA Test"))
+        assertTrue("WebView JS engine must dynamically render content into DOM", result.html.contains("Real JS Dynamic Rendered Title"))
     }
 
     @Test
