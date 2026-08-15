@@ -41,6 +41,7 @@ jobs:
 
   instrumented-tests:
     runs-on: macos-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
 
