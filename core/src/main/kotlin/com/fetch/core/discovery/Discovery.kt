@@ -23,7 +23,10 @@ public class Discovery(
         val started = System.currentTimeMillis()
         val failed = mutableListOf<String>()
 
-        val results = sources.map { source ->
+        val verticals = QueryClassifier.classify(query)
+        val selectedSources = selectSources(verticals)
+
+        val results = selectedSources.map { source ->
             async {
                 withTimeoutOrNull(config.perSourceTimeout) {
                     runCatching { source.search(query, maxResults) }
@@ -43,5 +46,19 @@ public class Discovery(
             fromIndex = false,
             failedSources = failed,
         )
+    }
+
+    private fun selectSources(detectedVerticals: Set<Vertical>): List<SearchSource> {
+        val specificVerticals = detectedVerticals.filter { it != Vertical.GENERAL }
+        if (specificVerticals.isEmpty() || sources.isEmpty()) {
+            return sources
+        }
+
+        val matching = sources.filter { source ->
+            source.verticals.isEmpty() || source.verticals.contains(Vertical.GENERAL) || source.verticals.any { it in specificVerticals }
+        }
+
+        // If no vertical sources matched, widen fan-out to all configured sources
+        return matching.ifEmpty { sources }
     }
 }
