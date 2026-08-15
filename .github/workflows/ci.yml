@@ -38,3 +38,33 @@ jobs:
         with:
           name: test-reports
           path: '**/build/reports/tests/'
+
+  instrumented-tests:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Instrumented Tests on Emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          target: default
+          arch: x86_64
+          profile: Nexus 6
+          script: ./gradlew connectedCheck --stacktrace
+
+      - name: Upload instrumented test reports
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: instrumented-test-reports
+          path: '**/build/reports/androidTests/'
