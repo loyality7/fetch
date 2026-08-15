@@ -36,6 +36,10 @@ public data class HttpConfig(
     val userAgent: String = DEFAULT_USER_AGENT,
     /** Per-host concurrent request cap. */
     val maxConcurrentPerHost: Int = 4,
+    /** Default backoff window applied when 429/503 is returned without Retry-After header. */
+    val defaultBackoffDuration: Duration = 60.seconds,
+    /** Maximum backoff window cap respected from Retry-After headers. */
+    val maxBackoffDuration: Duration = 1.hours,
 ) {
     public companion object {
         public const val DEFAULT_USER_AGENT: String =

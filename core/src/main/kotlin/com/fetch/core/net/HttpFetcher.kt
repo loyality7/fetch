@@ -71,6 +71,7 @@ public class HttpFetcher(
                         contentType = response.header("Content-Type"),
                         etag = response.header("ETag"),
                         lastModified = response.header("Last-Modified"),
+                        retryAfter = response.header("Retry-After"),
                         body = bytes.toString(charsetFor(response.header("Content-Type"))),
                         bytes = bytes.size.toLong(),
                     )
@@ -106,6 +107,7 @@ public data class HttpResult(
     val contentType: String?,
     val etag: String?,
     val lastModified: String?,
+    val retryAfter: String? = null,
     val body: String,
     val bytes: Long,
 )

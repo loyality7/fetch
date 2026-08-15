@@ -15,10 +15,12 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import com.fetch.core.index.DomainRouting
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 
@@ -306,5 +308,55 @@ class FetchRouterTest {
         val secondReq = server.takeRequest()
 
         assertEquals("\"v1\"", secondReq.getHeader("If-None-Match"))
+    }
+
+    @Test
+    fun `429 response sets domain backoff and fails fast on subsequent requests`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", "10"))
+
+        val subject = router()
+        val url = server.url("/throttled").toString()
+
+        try {
+            subject.fetch(url, CacheMode.NETWORK_ONLY)
+            fail("Expected RATE_LIMITED exception")
+        } catch (e: EngineException) {
+            assertEquals(ErrorCode.RATE_LIMITED, e.code)
+        }
+
+        // Subsequent request within backoff window should fail fast without network call
+        try {
+            subject.fetch(url, CacheMode.NETWORK_ONLY)
+            fail("Expected fast failure due to active backoff")
+        } catch (e: EngineException) {
+            assertEquals(ErrorCode.RATE_LIMITED, e.code)
+        }
+
+        // Only 1 request reached the server
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `successful request clears domain backoff window`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(articleHtml()))
+
+        val subject = router()
+        val domain = server.hostName
+
+        // Record active backoff
+        index.recordRouting(
+            DomainRouting(
+                domain = domain,
+                tier = Tier.HTTP.name,
+                lastSuccessAt = 0L,
+                backoffUntil = System.currentTimeMillis() - 1000L, // Expired backoff
+            )
+        )
+
+        val doc = subject.fetch(server.url("/recovered").toString(), CacheMode.NETWORK_ONLY)
+        assertEquals(Tier.HTTP, doc.tier)
+
+        val routing = index.routingFor(domain)
+        assertEquals(null, routing?.backoffUntil)
     }
 }

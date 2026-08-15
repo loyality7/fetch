@@ -45,6 +45,15 @@ public class FetchRouter(
         }
 
         val learned = index.routingFor(domain)
+
+        // Check active domain backoff window: fail fast if currently throttled
+        learned?.backoffUntil?.let { backoffUntil ->
+            val now = System.currentTimeMillis()
+            if (now < backoffUntil) {
+                throw EngineException(ErrorCode.RATE_LIMITED, "Domain $domain is in backoff until $backoffUntil")
+            }
+        }
+
         val cached = index.getRaw(url)
         val document = fetchLive(url, domain, learned, cached)
 
@@ -64,8 +73,15 @@ public class FetchRouter(
         }
 
         index.put(finalDocument, ttlFor(finalDocument))
+        // Success clears any previous backoff and updates learned routing tier
         index.recordRouting(
-            DomainRouting(domain = domain, tier = finalDocument.tier.name, lastSuccessAt = System.currentTimeMillis()),
+            DomainRouting(
+                domain = domain,
+                tier = finalDocument.tier.name,
+                lastSuccessAt = System.currentTimeMillis(),
+                failureCount = 0,
+                backoffUntil = null,
+            ),
         )
         return finalDocument
     }
@@ -90,12 +106,35 @@ public class FetchRouter(
                 )
             }
 
+            // Record backoff for 429 (Rate Limited) or 503 (Service Unavailable)
+            if (result.statusCode == 429 || result.statusCode == 503) {
+                val backoffMs = parseRetryAfter(result.retryAfter)
+                    ?: config.http.defaultBackoffDuration.inWholeMilliseconds
+                val cappedBackoffMs = backoffMs.coerceAtMost(config.http.maxBackoffDuration.inWholeMilliseconds)
+                val backoffUntil = System.currentTimeMillis() + cappedBackoffMs
+
+                index.recordRouting(
+                    DomainRouting(
+                        domain = domain,
+                        tier = learned?.tier ?: Tier.HTTP.name,
+                        lastSuccessAt = learned?.lastSuccessAt ?: 0L,
+                        failureCount = (learned?.failureCount ?: 0) + 1,
+                        backoffUntil = backoffUntil,
+                    )
+                )
+
+                throw EngineException(
+                    if (result.statusCode == 429) ErrorCode.RATE_LIMITED else ErrorCode.HTTP_ERROR,
+                    "Server returned ${result.statusCode}, backing off for ${cappedBackoffMs}ms",
+                )
+            }
+
             // An error status is a failure, not a hint that the page needs
             // JavaScript. Escalating here would launch a browser to render an
             // error page, and indexing the result would store it as content.
             if (result.statusCode !in SUCCESS_STATUS) {
                 throw EngineException(
-                    if (result.statusCode == 429) ErrorCode.RATE_LIMITED else ErrorCode.HTTP_ERROR,
+                    ErrorCode.HTTP_ERROR,
                     "Server returned ${result.statusCode}",
                 )
             }
@@ -177,6 +216,25 @@ public class FetchRouter(
 
         // 4. Default fallback
         return config.index.defaultTtl.inWholeMilliseconds
+    }
+
+    private fun parseRetryAfter(value: String?): Long? {
+        if (value.isNullOrBlank()) return null
+        val trimmed = value.trim()
+
+        // 1. Try parsing integer seconds (e.g. "120")
+        trimmed.toLongOrNull()?.let { seconds ->
+            return if (seconds >= 0) seconds * 1000L else null
+        }
+
+        // 2. Try parsing HTTP-date (e.g. "Wed, 21 Oct 2015 07:28:00 GMT")
+        return runCatching {
+            val targetTime = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME
+                .parse(trimmed, java.time.Instant::from)
+                .toEpochMilli()
+            val diff = targetTime - System.currentTimeMillis()
+            if (diff > 0) diff else 0L
+        }.getOrNull()
     }
 
     private fun sha256(value: String): String =
