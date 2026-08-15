@@ -33,7 +33,10 @@ public class WebEngineImpl(
     private val extractor: Extractor,
     private val discovery: Discovery?,
     private val browserAvailable: suspend () -> Boolean = { false },
+    private val metrics: com.fetch.core.metrics.EngineMetrics = com.fetch.core.metrics.EngineMetrics(),
 ) : WebEngine {
+
+    public val engineMetrics: com.fetch.core.metrics.EngineMetrics get() = metrics
 
     override suspend fun search(query: String, maxResults: Int, cacheMode: CacheMode): SearchResponse {
         val started = System.currentTimeMillis()
@@ -168,6 +171,7 @@ public class WebEngineImpl(
 
     override suspend fun health(): Health {
         val stats = index.stats()
+        val snapshot = metrics.snapshotMetrics()
         return Health(
             engineVersion = VERSION,
             capabilities = mapOf(
@@ -184,6 +188,18 @@ public class WebEngineImpl(
             indexSizeBytes = stats.sizeBytes,
             browserAvailable = browserAvailable(),
             sources = emptyMap(),
+            metrics = mapOf(
+                "total_requests" to snapshot.totalRequests,
+                "index_hits" to snapshot.indexHits,
+                "index_misses" to snapshot.indexMisses,
+                "escalations_to_browser" to snapshot.escalationsToBrowser,
+                "bytes_downloaded" to snapshot.bytesDownloaded,
+                "renderer_crashes" to snapshot.rendererCrashes,
+                "cancellations" to snapshot.cancellations,
+                "avg_fetch_latency_ms" to snapshot.avgFetchLatencyMs,
+                "avg_extraction_latency_ms" to snapshot.avgExtractionLatencyMs,
+                "avg_search_latency_ms" to snapshot.avgSearchLatencyMs,
+            ),
         )
     }
 

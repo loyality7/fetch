@@ -106,6 +106,7 @@ public data class HealthDto(
     @SerialName("indexed_documents") val indexedDocuments: Long,
     @SerialName("index_size_bytes") val indexSizeBytes: Long,
     @SerialName("browser_available") val browserAvailable: Boolean,
+    val metrics: Map<String, Long> = emptyMap(),
     @SerialName("request_id") val requestId: String,
 )
 
@@ -144,6 +145,7 @@ internal fun Health.toDto(requestId: String) = HealthDto(
     indexedDocuments = indexedDocuments,
     indexSizeBytes = indexSizeBytes,
     browserAvailable = browserAvailable,
+    metrics = metrics,
     requestId = requestId,
 )
 

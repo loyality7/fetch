@@ -69,6 +69,7 @@ public data class Health(
     val indexSizeBytes: Long,
     val browserAvailable: Boolean,
     val sources: Map<String, SourceHealth>,
+    val metrics: Map<String, Long> = emptyMap(),
 )
 
 public data class SourceHealth(
