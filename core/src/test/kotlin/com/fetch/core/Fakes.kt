@@ -19,6 +19,8 @@ class FakeIndexStore : IndexStore {
 
     var putCount: Int = 0
         private set
+    var lastPutTtlMillis: Long = 0
+        private set
 
     // Mirrors SqliteIndexStore: anything served from storage reports Tier.INDEX,
     // whatever tier originally produced it.
@@ -30,6 +32,7 @@ class FakeIndexStore : IndexStore {
 
     override suspend fun put(document: Document, ttlMillis: Long) {
         putCount++
+        lastPutTtlMillis = ttlMillis
         documents[document.urls.requested] = document to (System.currentTimeMillis() + ttlMillis)
     }
 

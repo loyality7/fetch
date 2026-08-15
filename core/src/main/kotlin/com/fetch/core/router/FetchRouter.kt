@@ -124,8 +124,28 @@ public class FetchRouter(
         metadata = extracted.metadata,
     )
 
-    private fun ttlFor(document: Document): Long =
-        config.index.defaultTtl.inWholeMilliseconds
+    private fun ttlFor(document: Document): Long {
+        val url = document.urls.requested.lowercase()
+        val contentType = document.contentType?.lowercase().orEmpty()
+
+        // 1. News or dynamic feeds
+        if (url.contains("/news/") || url.contains("/feed/") || url.contains("/rss") || contentType.contains("application/rss+xml") || contentType.contains("application/atom+xml")) {
+            return config.index.newsTtl.inWholeMilliseconds
+        }
+
+        // 2. Documentation sites
+        if (url.contains("/docs/") || url.contains("/documentation/") || url.contains("/api-docs") || url.contains("/wiki/") || url.contains("readthedocs.io") || url.contains("developer.mozilla.org")) {
+            return config.index.documentationTtl.inWholeMilliseconds
+        }
+
+        // 3. Search / Discovery results
+        if (url.contains("/search") || url.contains("query=") || contentType.contains("application/json")) {
+            return config.index.searchTtl.inWholeMilliseconds
+        }
+
+        // 4. Default fallback
+        return config.index.defaultTtl.inWholeMilliseconds
+    }
 
     private fun sha256(value: String): String =
         MessageDigest.getInstance("SHA-256")

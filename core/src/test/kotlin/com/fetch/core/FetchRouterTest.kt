@@ -262,4 +262,28 @@ class FetchRouterTest {
         assertEquals(ErrorCode.RATE_LIMITED, error.code)
         assertTrue(error.retryable)
     }
+
+    @Test
+    fun `ttl differs by content type and url pattern`() = runTest {
+        val config = EngineConfig()
+        
+        server.enqueue(MockResponse().setBody(articleHtml()))
+        server.enqueue(MockResponse().setBody(articleHtml()))
+
+        val subject = router(config = config)
+
+        val newsDocUrl = server.url("/news/breaking-story").toString()
+        val docsDocUrl = server.url("/docs/api-guide").toString()
+
+        subject.fetch(newsDocUrl, CacheMode.DEFAULT)
+        val newsTtl = index.lastPutTtlMillis
+
+        subject.fetch(docsDocUrl, CacheMode.DEFAULT)
+        val docsTtl = index.lastPutTtlMillis
+
+        // Verify stored TTL in index differs for news (1 hour) vs docs (30 days)
+        assertEquals(config.index.newsTtl.inWholeMilliseconds, newsTtl)
+        assertEquals(config.index.documentationTtl.inWholeMilliseconds, docsTtl)
+        assertTrue(newsTtl < docsTtl)
+    }
 }
