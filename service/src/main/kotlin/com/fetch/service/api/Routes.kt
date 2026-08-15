@@ -3,6 +3,7 @@ package com.fetch.service.api
 import com.fetch.core.engine.WebEngine
 import com.fetch.core.error.EngineException
 import com.fetch.core.error.ErrorCode
+import com.fetch.service.ApiLimitsConfig
 import com.fetch.service.dto.AddRequest
 import com.fetch.service.dto.AskRequest
 import com.fetch.service.dto.ErrorBody
@@ -23,12 +24,17 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import java.util.UUID
 
-internal fun Application.installRoutes(engine: WebEngine, token: String) {
+internal fun Application.installRoutes(
+    engine: WebEngine,
+    token: String,
+    limitsConfig: ApiLimitsConfig = ApiLimitsConfig(),
+) {
     routing {
         route("/v1") {
             post("/search") {
                 withGuard(token) { requestId ->
                     val body = call.receive<SearchRequest>()
+                    validateLength(body.query, limitsConfig.maxQueryLengthChars, "Query")
                     call.respond(engine.search(body.query, body.maxResults).toDto(requestId))
                 }
             }
@@ -36,6 +42,7 @@ internal fun Application.installRoutes(engine: WebEngine, token: String) {
             post("/open") {
                 withGuard(token) { requestId ->
                     val body = call.receive<OpenRequest>()
+                    validateLength(body.url, limitsConfig.maxUrlLengthChars, "URL")
                     call.respond(engine.open(body.url).toDto(requestId))
                 }
             }
@@ -43,6 +50,7 @@ internal fun Application.installRoutes(engine: WebEngine, token: String) {
             post("/extract") {
                 withGuard(token) { requestId ->
                     val body = call.receive<ExtractRequest>()
+                    body.url?.let { validateLength(it, limitsConfig.maxUrlLengthChars, "URL") }
                     call.respond(engine.extract(body.url, body.content).toDto(requestId))
                 }
             }
@@ -50,6 +58,8 @@ internal fun Application.installRoutes(engine: WebEngine, token: String) {
             post("/find") {
                 withGuard(token) { requestId ->
                     val body = call.receive<FindRequest>()
+                    validateLength(body.url, limitsConfig.maxUrlLengthChars, "URL")
+                    validateLength(body.query, limitsConfig.maxQueryLengthChars, "Query")
                     val passages = engine.find(body.url, body.query, body.maxPassages)
                     call.respond(passages.map { it.toDto() })
                 }
@@ -58,6 +68,7 @@ internal fun Application.installRoutes(engine: WebEngine, token: String) {
             post("/add") {
                 withGuard(token) { requestId ->
                     val body = call.receive<AddRequest>()
+                    body.url?.let { validateLength(it, limitsConfig.maxUrlLengthChars, "URL") }
                     call.respond(engine.add(body.content, body.title, body.url).toDto(requestId))
                 }
             }
@@ -65,6 +76,7 @@ internal fun Application.installRoutes(engine: WebEngine, token: String) {
             post("/ask") {
                 withGuard(token) { requestId ->
                     val body = call.receive<AskRequest>()
+                    validateLength(body.query, limitsConfig.maxQueryLengthChars, "Query")
                     call.respond(engine.ask(body.query, body.maxSources).toDto(requestId))
                 }
             }
@@ -75,6 +87,15 @@ internal fun Application.installRoutes(engine: WebEngine, token: String) {
                 }
             }
         }
+    }
+}
+
+private fun validateLength(value: String, maxLength: Int, fieldName: String) {
+    if (value.length > maxLength) {
+        throw EngineException(
+            code = ErrorCode.RESPONSE_TOO_LARGE,
+            message = "$fieldName exceeds maximum length of $maxLength characters",
+        )
     }
 }
 

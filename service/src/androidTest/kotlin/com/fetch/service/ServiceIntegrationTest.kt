@@ -122,6 +122,36 @@ public class ServiceIntegrationTest {
         }
     }
 
+    @Test
+    public fun testApiResourceLimitsAndAuthentication() {
+        val manager = ApiTokenManager(context)
+        val token = manager.getOrCreateToken()
+        val fakeEngine = FakeWebEngine()
+        val customLimits = ApiLimitsConfig(
+            maxRequestBodyBytes = 50,
+            maxQueryLengthChars = 10,
+        )
+
+        val server = LocalApiServer(fakeEngine, token, port = 8481, limitsConfig = customLimits)
+        server.start()
+
+        try {
+            // Unauthorized request (missing token)
+            postJson("http://127.0.0.1:8481/v1/search", "invalid-token", """{"query":"test"}""").also { (code, body) ->
+                assertEquals(401, code)
+                assertTrue(body.contains("BLOCKED"))
+            }
+
+            // Exceeds max query length (query length 15 > limit 10)
+            postJson("http://127.0.0.1:8481/v1/search", token, """{"query":"excessive_query_string"}""").also { (code, body) ->
+                assertEquals(413, code)
+                assertTrue(body.contains("RESPONSE_TOO_LARGE"))
+            }
+        } finally {
+            server.stop()
+        }
+    }
+
     private fun postJson(urlString: String, token: String, jsonBody: String): Pair<Int, String> {
         val url = java.net.URL(urlString)
         val connection = url.openConnection() as java.net.HttpURLConnection

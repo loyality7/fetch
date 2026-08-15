@@ -2,11 +2,11 @@ package com.fetch.service
 
 import com.fetch.core.engine.WebEngine
 import com.fetch.service.api.installRoutes
+import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
 /**
@@ -19,13 +19,14 @@ public class LocalApiServer(
     private val webEngine: WebEngine,
     private val token: String,
     private val port: Int = DEFAULT_PORT,
+    private val limitsConfig: ApiLimitsConfig = ApiLimitsConfig(),
 ) {
 
     private val server = embeddedServer(CIO, port = port, host = LOOPBACK) {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true; encodeDefaults = true })
         }
-        installRoutes(webEngine, token)
+        installRoutes(webEngine, token, limitsConfig)
     }
 
     public fun start() {
